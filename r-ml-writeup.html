@@ -55,19 +55,19 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 </div>
 
 
-<div id="summary" class="section level1">
-<h1>Summary</h1>
-<p>We are going to build a machine learning model to predict</p>
+<div id="summary" class="section level2">
+<h2>Summary</h2>
+<p>We are going to build a machine learning model to predict the motion actions using the given sensor observations. In the end we will use our model on the given test set which has data for 20 observations.</p>
 </div>
-<div id="load-data" class="section level1">
-<h1>Load Data</h1>
+<div id="load-data" class="section level2">
+<h2>Load Data</h2>
 <pre class="r"><code>training &lt;- read.csv(&quot;data/pml-training.csv&quot;, na.strings=c(&quot;NA&quot;, &quot;#DIV/0!&quot;), stringsAsFactors=FALSE)
 training$classe &lt;- as.factor(training$classe)
 to_predict &lt;- read.csv(&quot;data/pml-testing.csv&quot;, na.strings=c(&quot;NA&quot;, &quot;#DIV/0!&quot;), stringsAsFactors=FALSE)</code></pre>
 <p>We see that data has 159 predictor variables. The variable to be predicted is “classe”. We see that a lot of predictor variables are NA for some rows. Instead of averaging, we will choose to remove any columns with NA values.</p>
 <pre class="r"><code>training_cc &lt;- training[, colSums(is.na(training)) == 0]
 to_predict &lt;- to_predict[, which(names(to_predict) %in% names(training_cc))]</code></pre>
-<p>Here we have filtered out predictors for which there are no NA values in the testing set. Still we can see that we have 60 predictor variables left now. We will now partition this data into our own training set and testing set for cross-validation. We are ignoring first six columns in the training set because they are not going to be used in our model.</p>
+<p>Here we have filtered out predictors for which there are no NA values in the testing set. Still we can see that we have 60 predictor variables left now. We will now partition this data into our own training set and testing set for cross-validation. We are ignoring first six columns in the training set because they are not going to be used in our model. We will use the randomForest library to generate our model.</p>
 <pre class="r"><code>library(caret)</code></pre>
 <pre><code>## Loading required package: lattice
 ## Loading required package: ggplot2</code></pre>
@@ -96,11 +96,11 @@ model</code></pre>
 ## D    0    0   16 1914    0   0.0082902
 ## E    0    0    0    2 2163   0.0009238</code></pre>
 <p>Now that we have a random forest model, we can try to estimate in-sample and out of sample errors. In sample error is nothing but the accuracy on the training set.</p>
-<pre class="r"><code>sum(model$predicted == my_training$classe)/dim(my_training)[1]</code></pre>
-<pre><code>## [1] 0.9969</code></pre>
+<pre class="r"><code>1 - sum(model$predicted == my_training$classe)/dim(my_training)[1]</code></pre>
+<pre><code>## [1] 0.003057</code></pre>
 <p>Out of sample error can be estimated using the training set we created when we partitioned the original training set.</p>
-<pre class="r"><code>sum(predict(model, my_testing) == my_testing$classe)/dim(my_testing)[1]</code></pre>
-<pre><code>## [1] 0.9975</code></pre>
+<pre class="r"><code>1 - sum(predict(model, my_testing) == my_testing$classe)/dim(my_testing)[1]</code></pre>
+<pre><code>## [1] 0.002549</code></pre>
 <p>We will use our model to predict the held out testing set.</p>
 <pre class="r"><code>pml_write_files = function(x){
   n = length(x)
@@ -111,10 +111,28 @@ model</code></pre>
 }
 answers &lt;- predict(model, to_predict)
 pml_write_files(answers)</code></pre>
-<div id="cross-validation" class="section level2">
-<h2>Cross Validation</h2>
-<p>We use k-fold cross-validation to estimate out of sample error.</p>
+<p>We find that the above model gives 100% accuracy on the test set which is a part of the separate assignment.</p>
 </div>
+<div id="cross-validation-and-out-of-sample-error" class="section level2">
+<h2>Cross Validation and Out of Sample Error</h2>
+<p>We will use k-fold cross-validation to estimate out of sample error. We will use k = 10.</p>
+<pre class="r"><code>library(caret)
+flds &lt;- createFolds(my_training$classe)
+k &lt;- 10
+errors &lt;- c(0)
+for (i in 1:k) {
+  fold &lt;- flds[i][[1]]
+  validation_set &lt;- my_training[fold, ]
+  training_set &lt;- my_training[-fold, ]
+  model &lt;- randomForest(classe ~ ., data=training_set)
+  errors[i] &lt;- 1 - sum(predict(model, validation_set) == validation_set$classe)/nrow(validation_set)
+}
+errors</code></pre>
+<pre><code>##  [1] 0.0033956 0.0059423 0.0008496 0.0059423 0.0033985 0.0033985 0.0016964
+##  [8] 0.0050977 0.0016992 0.0050934</code></pre>
+<pre class="r"><code>mean(errors)</code></pre>
+<pre><code>## [1] 0.003651</code></pre>
+<p>k-fold cross validations gives us a reasonable estimate of the out of sample error. The low out of sample error rate gives us a good amount of confidence in our model.</p>
 </div>
 
 
