@@ -3,10 +3,10 @@ title: "R Machine Learning Assignment"
 output: html_document
 ---
 
-# Summary
-We are going to build a machine learning model to predict 
+## Summary
+We are going to build a machine learning model to predict the motion actions using the given sensor observations. In the end we will use our model on the given test set which has data for 20 observations.
 
-# Load Data
+## Load Data
 ```{r}
 training <- read.csv("data/pml-training.csv", na.strings=c("NA", "#DIV/0!"), stringsAsFactors=FALSE)
 training$classe <- as.factor(training$classe)
@@ -17,28 +17,30 @@ We see that data has 159 predictor variables. The variable to be predicted is "c
 training_cc <- training[, colSums(is.na(training)) == 0]
 to_predict <- to_predict[, which(names(to_predict) %in% names(training_cc))]
 ```
-Here we have filtered out predictors for which there are no NA values in the testing set. Still we can see that we have `r dim(training_cc)[2]` predictor variables left now. We will now partition this data into our own training set and testing set for cross-validation. We are ignoring first six columns in the training set because they are not going to be used in our model.
-```{r}
+Here we have filtered out predictors for which there are no NA values in the testing set. Still we can see that we have `r dim(training_cc)[2]` predictor variables left now. We will now partition this data into our own training set and testing set for cross-validation. We are ignoring first six columns in the training set because they are not going to be used in our model. We will use the randomForest library to generate our model.
+```{r, cache=TRUE}
 library(caret)
 library(randomForest)
 set.seed(156)
 inTrain <- createDataPartition(y=training_cc$classe, p=0.6, list=FALSE)
 my_training <- training_cc[inTrain, 7:60]
 my_testing <- training_cc[-inTrain, 7:60]
+```
+
 model <- randomForest(classe ~ ., data=my_training, importance=TRUE, proximity=TRUE)
 model
 ```
 Now that we have a random forest model, we can try to estimate in-sample and out of sample errors.
 In sample error is nothing but the accuracy on the training set. 
 ```{r}
-sum(model$predicted == my_training$classe)/dim(my_training)[1]
+1 - sum(model$predicted == my_training$classe)/dim(my_training)[1]
 ```
 Out of sample error can be estimated using the training set we created when we partitioned the original training set.
 ```{r}
-sum(predict(model, my_testing) == my_testing$classe)/dim(my_testing)[1]
+1 - sum(predict(model, my_testing) == my_testing$classe)/dim(my_testing)[1]
 ```
 We will use our model to predict the held out testing set.
-```{r,eval=FALSE}
+```{r, eval=FALSE}
 pml_write_files = function(x){
   n = length(x)
   for(i in 1:n){
@@ -49,8 +51,23 @@ pml_write_files = function(x){
 answers <- predict(model, to_predict)
 pml_write_files(answers)
 ```
+We find that the above model gives 100% accuracy on the test set which is a part of the separate assignment.
 
-## Cross Validation
-We use k-fold cross-validation to estimate out of sample error. 
-
-
+## Cross Validation and Out of Sample Error
+We will use k-fold cross-validation to estimate out of sample error. We will use k = 10.
+```{r, cache=TRUE}
+library(caret)
+flds <- createFolds(my_training$classe)
+k <- 10
+errors <- c(0)
+for (i in 1:k) {
+  fold <- flds[i][[1]]
+  validation_set <- my_training[fold, ]
+  training_set <- my_training[-fold, ]
+  model <- randomForest(classe ~ ., data=training_set)
+  errors[i] <- 1 - sum(predict(model, validation_set) == validation_set$classe)/nrow(validation_set)
+}
+errors
+mean(errors)
+```
+k-fold cross validations gives us a reasonable estimate of the out of sample error. The low out of sample error rate gives us a good amount of confidence in our model.
